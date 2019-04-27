@@ -52,7 +52,9 @@ function set_up_environment(scape_side, scape_carry_cap, scape_growth_rate,
                 "arr_agents" => arr_agents)) 
 end ## end of set_up_environment()
 
-function animate_sim(sugscape_obj, arr_agents, time_periods)
+function animate_sim(sugscape_obj, arr_agents, time_periods, 
+                     birth_rate, inbound_rate, outbound_rate,
+                     vision_range_tpl, metab_range_tpl, suglvl_range_tpl)
     """
     Performs the various operations on the sugarscape and agent population
     to 'animate' them.
@@ -60,28 +62,30 @@ function animate_sim(sugscape_obj, arr_agents, time_periods)
     of sugar across all the time periods
     
     """
+    metabol_distrib =  DiscreteUniform(metab_range_tpl[1], metab_range_tpl[2]);
+    vision_distrib = DiscreteUniform(vision_range_tpl[1], vision_range_tpl[2]);
+    suglvl_distrib = DiscreteUniform(suglvl_range_tpl[1], suglvl_range_tpl[2]); 
     arr_ginis = zeros(time_periods)
     for period in 1:time_periods 
         for ind in shuffle(1:length(arr_agents))
-            locate_move_feed!(arr_agents[ind], sugscape_obj)            
-        end
-        life_check!(arr_agents)
-        regenerate_sugar!(sugscape_obj)
-        ## println(get_sugarscape_stats(sugscape_obj))
-        gini_coeff = compute_Gini(arr_agents)
-        ## println("Here's the gini:",
-                # string(gini_coeff))
-        arr_ginis[period] = gini_coeff
-        ## println("Finished time-step: ", string(period), "\n\n")
-        
+            locate_move_feed!(arr_agents[ind], sugscape_obj, arr_agents)            
+        end 
+        regenerate_sugar!(sugscape_obj) 
+        perform_birth_inbound_outbound!(arr_agents, sugscape_obj, birth_rate, 
+                                        inbound_rate, outbound_rate, 
+                                        vision_distrib, metabol_distrib,
+                                        suglvl_distrib) 
+        life_check!(arr_agents) 
+        arr_ginis[period] = compute_Gini(arr_agents)
+        ## println("Finished time-step: ", string(period), "\n\n") 
     end## end of time_periods for loop
     return(arr_ginis)
 end ## end animate_sim()
 
 function run_sim()
     ## Random.seed!(13990);
-    params_df = CSV.read("parameter-ranges-testing.csv")
-    outfile_name = "outputs.csv"
+    params_df = CSV.read("parameter-ranges-testing-new.csv")
+    outfile_name = "outputs-new.csv"
     time_periods = 100
 
     temp_out = DataFrame(zeros(nrow(params_df), time_periods))
@@ -104,7 +108,11 @@ function run_sim()
         vision_range_tpl = (1, params_df[2, :VsnRng])
         suglvl_range_tpl = (1, params_df[2, :InitSgLvl])
         pop_density = params_df[2, :Adensity]
-
+        birth_rate = params_df[2, :Birthrate]
+        inbound_rate = params_df[2, :InbndRt]
+        outbound_rate = params_df[2, :OtbndRt]
+        
+            
         dict_objs = set_up_environment(scape_side, scape_carry_cap,
                                        scape_growth_rate, pop_density,
                                        metab_range_tpl, vision_range_tpl,
@@ -119,7 +127,10 @@ function run_sim()
         ## next, animate the simulation - move the agents, have them consume sugar,
         ## reduce the sugar in sugscape cells, regrow the sugar....and collect the
         ## array of gini coeffs
-        arr_ginis = animate_sim(sugscape_obj, arr_agents, time_periods)
+        arr_ginis = animate_sim(sugscape_obj, arr_agents, time_periods, 
+                                birth_rate, inbound_rate, outbound_rate,
+                                vision_range_tpl, metab_range_tpl, 
+                                suglvl_range_tpl)
 
         # for colname in names(params_df)
         #     out_df[rownum, Symbol(colname)] = params_df[rownum, Symbol(colname)]
@@ -136,7 +147,7 @@ function run_sim()
         # println(out_df)
         # readline()
     end #end iterate over param rows 
-    
+
     ## return the output df 
     return(out_df)
     
