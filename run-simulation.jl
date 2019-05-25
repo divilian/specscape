@@ -8,7 +8,8 @@ using Random
 using Distributions
 using CSV
 using DataFrames
-# using RCall
+using Serialization
+
 
 function set_up_environment(scape_side, scape_carry_cap, scape_growth_rate,
                             pop_density, metab_range_tpl, vision_range_tpl, suglvl_range_tpl)
@@ -61,21 +62,7 @@ end ## end of set_up_environment()
 function compute_Gini(collection_obj::Any)
     # println("Computing gini for type: ", type)
     arr_suglevels = [singobj.sugar_level for singobj in
-                     collection_obj if singobj.sugar_level >= 0] 
-    # println(arr_suglevels)
-    # println("Enter enter")
-    # readline()
-    # @assert(size(arr_suglevels)[1] > 0)
-    # R"library(ineq)"
-    # gini = R"ineq($arr_suglevels, type='Gini')"[1]
-    # try
-    #     @assert gini >= 0.0 && gini <= 1.0
-    # catch
-    #     # println("Came across a nonsensical Gini value: ", string(gini))
-    #     # readline()
-    # end
-    # # println(gini)
-    # return(gini)    
+                     collection_obj if singobj.sugar_level >= 0]
     n = size(arr_suglevels)[1]
     iss = 1:n
     if (n > 0)
@@ -105,6 +92,8 @@ function animate_sim(sugscape_obj, arr_agents, time_periods,
     arr_agent_ginis = zeros(time_periods)
     arr_scape_ginis = zeros(time_periods)
 
+    ## {timeperiod => {agent_id => suglevel, agent_id => suglevel, ...}}
+
     @assert !(arr_scape_ginis === arr_agent_ginis)
     ## the following is a hack because creating an empty array of Array{Proto, 1}
     ## and adding Proto objects via push! is resulting in errors.
@@ -113,6 +102,7 @@ function animate_sim(sugscape_obj, arr_agents, time_periods,
     # arr_protos = Array{Proto, 1}
     arr_protos = [Proto(-1, -1, false, [-1], [Transaction(-1, -1, "", -1)])]
     
+    d_combo_pop_suglevels = Dict{Int64, Dict{Int64, Float64}}(0 => Dict(0 => 0))
     for period in 1:time_periods 
         for ind in shuffle(1:length(arr_agents))
             locate_move_feed!(arr_agents[ind], sugscape_obj, arr_agents, arr_protos, period)
@@ -134,13 +124,19 @@ function animate_sim(sugscape_obj, arr_agents, time_periods,
 
         arr_agent_ginis[period] = compute_Gini(arr_agents)
         arr_scape_ginis[period] = compute_Gini(sugscape_obj)
-        # println("No. of protos: ", length(arr_protos))
-        # println("No. of agents: ", string(length(arr_agents)))
-        # println("Finished time-step: ", string(period), "\n\n") 
-        ## println("Enter enter")
-        ## readline()
+
+        d_current_suglevels = Dict{Int64, Float64}(-1 => -1.2) ## create a new one, each time period
+        for agobj in arr_agents
+            d_current_suglevels[agobj.agent_id] = agobj.sugar_level
+        end
+        delete!(d_current_suglevels, -1)## delete the dummy entry created
+        d_combo_pop_suglevels[period] = d_current_suglevels
+        
     end## end of time_periods for loop
-    return((arr_agent_ginis, arr_scape_ginis))
+    delete!(d_combo_pop_suglevels, 0) ## delete the original dummy key-value pair
+    # println("d_combo_pop_suglevels has ", string(length(d_combo_pop_suglevels)), " number of keys!")
+    # readline()
+    return((arr_agent_ginis, arr_scape_ginis, d_combo_pop_suglevels))
 end ## end animate_sim()
 
 function run_sim(givenseed)
@@ -213,12 +209,15 @@ function run_sim(givenseed)
         ## next, animate the simulation - move the agents, have them consume sugar,
         ## reduce the sugar in sugscape cells, regrow the sugar....and collect the
         ## array of gini coeffs
-        arr_agent_ginis, arr_scape_ginis = animate_sim(sugscape_obj, arr_agents, time_periods, 
-                                                       birth_rate, inbound_rate, outbound_rate,
-                                                       vision_range_tpl, metab_range_tpl, 
-                                                       suglvl_range_tpl, threshold)
+        arr_agent_ginis, arr_scape_ginis, dict_pop_ag_suglevels = animate_sim(sugscape_obj, arr_agents,
+                                                                              time_periods, 
+                                                                              birth_rate, inbound_rate,
+                                                                              outbound_rate,
+                                                                              vision_range_tpl, 
+                                                                              metab_range_tpl, 
+                                                                              suglvl_range_tpl, threshold)
 
-
+                                
         # for colnum in ncol(params_df)+1 : ncol(out_df)
         #     out_df[rownum, colnum] = arr_agent_ginis[colnum - ncol(params_df)]
         # end
@@ -230,8 +229,10 @@ function run_sim(givenseed)
         for colnum in ncol(params_df)+1 : ncol(out_df_scape)
             out_df_scape[rownum, colnum] = arr_scape_ginis[colnum - ncol(params_df)]
         end
-        
-        
+        outdir = "agent-suglevel-files/"
+        fname = outdir * "pop-suglevel-details-combo-$rownum-$givenseed.srl"
+        ## fname = "pop-suglevel-details-combo-$rownum-$givenseed.srl"
+        serialize(fname, dict_pop_ag_suglevels)
         println("Finished combination $rownum")
         # println("Here's the out_df")
         # println(out_df)
@@ -243,14 +244,13 @@ function run_sim(givenseed)
 end ## run_sim
 
 
-
-# run_sim() |> CSV.write("output.csv")
 arr_seeds = [10, 80085, 4545, 4543543535, 87787765, 63542, 34983, 596895, 2152, 434];
+outdir = "outputs/"
 for seednum in arr_seeds 
     outdf_agents, outdf_scape = run_sim(seednum)
-    fname = "outputfile-agents-" * string(seednum) * ".csv"
+    fname = outdir * "outputfile-agents-" * string(seednum) * ".csv"
     outdf_agents |> CSV.write(fname)
-    fname = "outputfile-scape-" * string(seednum) * ".csv"
+    fname = outdir * "outputfile-scape-" * string(seednum) * ".csv"
     outdf_scape |> CSV.write(fname)
     println("Finished processing seed: ", string(seednum))
 end

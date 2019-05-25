@@ -247,3 +247,5 @@ function perform_birth_inbound_outbound!(arr_agents, sugscape_obj, birth_rate,
     append!(arr_agents, arr_new_agents)
 
 end ## perform_birth_inbound_outbound!()
+
+
