@@ -1,6 +1,6 @@
 include("Sugarscape.jl")
 include("Agent.jl")
-include("Institution.jl")
+include("Proto.jl")
 include("max-num-generator.jl")
 
 using Statistics
@@ -58,7 +58,7 @@ function set_up_environment(scape_side, scape_carry_cap, scape_growth_rate,
 end ## end of set_up_environment()
 
 
-function compute_Gini(collection_obj, type)
+function compute_Gini(collection_obj::Any)
     # println("Computing gini for type: ", type)
     arr_suglevels = [singobj.sugar_level for singobj in
                      collection_obj if singobj.sugar_level >= 0] 
@@ -87,6 +87,7 @@ function compute_Gini(collection_obj, type)
     end
 end
 
+
 function animate_sim(sugscape_obj, arr_agents, time_periods, 
                      birth_rate, inbound_rate, outbound_rate,
                      vision_range_tpl, metab_range_tpl, suglvl_range_tpl,
@@ -105,35 +106,35 @@ function animate_sim(sugscape_obj, arr_agents, time_periods,
     arr_scape_ginis = zeros(time_periods)
 
     @assert !(arr_scape_ginis === arr_agent_ginis)
-    ## the following is a hack because creating an empty array of Array{Institution, 1}
-    ## and adding Institution objects via push! is resulting in errors.
-    ## So to add type-checking on arr_institutions, we're going to initialize it with
-    ## a dummy Institution object
-    # arr_institutions = Array{Institution, 1}
-    arr_institutions = [Institution(-1, -1, false, [-1], [Transaction(-1, -1, "", -1)])]
+    ## the following is a hack because creating an empty array of Array{Proto, 1}
+    ## and adding Proto objects via push! is resulting in errors.
+    ## So to add type-checking on arr_protos, we're going to initialize it with
+    ## a dummy Proto object
+    # arr_protos = Array{Proto, 1}
+    arr_protos = [Proto(-1, -1, false, [-1], [Transaction(-1, -1, "", -1)])]
     
     for period in 1:time_periods 
         for ind in shuffle(1:length(arr_agents))
-            locate_move_feed!(arr_agents[ind], sugscape_obj, arr_agents, arr_institutions, period)
+            locate_move_feed!(arr_agents[ind], sugscape_obj, arr_agents, arr_protos, period)
         end 
         regenerate_sugar!(sugscape_obj)
         perform_birth_inbound_outbound!(arr_agents, sugscape_obj, birth_rate, 
                                         inbound_rate, outbound_rate, 
                                         vision_distrib, metabol_distrib,
                                         suglvl_distrib) 
-        form_possible_institutions!(arr_agents, threshold, sugscape_obj, 
-                                    arr_institutions, period)
+        form_possible_protos!(arr_agents, threshold, sugscape_obj, 
+                                    arr_protos, period)
 
         arr_agents = life_check!(arr_agents)
         @assert all([aggobj.alive for aggobj in arr_agents])
         # println("HERHEREHERE")
         # readline()
         update_occupied_status!(arr_agents, sugscape_obj)
-        update_institution_statuses!(arr_institutions, period)
+        update_proto_statuses!(arr_protos, period)
 
         arr_agent_ginis[period] = compute_Gini(arr_agents)
         arr_scape_ginis[period] = compute_Gini(sugscape_obj)
-        # println("No. of institutions: ", length(arr_institutions))
+        # println("No. of protos: ", length(arr_protos))
         # println("No. of agents: ", string(length(arr_agents)))
         # println("Finished time-step: ", string(period), "\n\n") 
         ## println("Enter enter")

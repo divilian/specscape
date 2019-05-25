@@ -1,4 +1,4 @@
-include("Institution.jl")
+include("Proto.jl")
 include("max-num-generator.jl")
 
 using Random
@@ -13,7 +13,7 @@ mutable struct Agent
     metabolic_rate::Int64
     sugar_level::Float64
     alive::Bool
-    institution_id::Int64
+    proto_id::Int64
 end
 
 function fetch_best_location(ag_obj, sugscape_obj)
@@ -54,7 +54,7 @@ function fetch_best_location(ag_obj, sugscape_obj)
     end    
 end ## end fetch_best_location
 
-function locate_move_feed!(agobj, sugscape_obj, arr_agents, arr_institutions, timeperiod)
+function locate_move_feed!(agobj, sugscape_obj, arr_agents, arr_protos, timeperiod)
     """
     For a given agent, performs the feeding operation first. If sugar is not 
     available within the agent or in conjunction with current location, moves
@@ -84,20 +84,20 @@ function locate_move_feed!(agobj, sugscape_obj, arr_agents, arr_institutions, ti
             sugscape_obj[agobj.location_x, agobj.location_y].occupied = true
             sugscape_obj[agobj.location_x, agobj.location_y].agent_id = agobj.agent_id
             ## x = readline()
-        else ## need to move or borrow from institution
+        else ## need to move or borrow from proto
             ## identify best location
             new_location = fetch_best_location(agobj, sugscape_obj)
             if isnothing(new_location)
                 ## no food available at current location and no new source
-                ## of food available, so see if withdrawal from institution is possible
-                instobj = fetch_specific_inst_obj(arr_institutions,
-                                            agobj.institution_id)
+                ## of food available, so see if withdrawal from proto is possible
+                protoobj = fetch_specific_proto_obj(arr_protos,
+                                            agobj.proto_id)
                 needed_amount = agobj.metabolic_rate - agobj.sugar_level
-                if agobj.institution_id > 0 && (instobj.sugar_level >
+                if agobj.proto_id > 0 && (protoobj.sugar_level >
                                                 needed_amount)
                     agobj.sugar_level = 0
-                    instobj.sugar_level -= needed_amount
-                    push!(instobj.ledger_transactions,
+                    protoobj.sugar_level -= needed_amount
+                    push!(protoobj.ledger_transactions,
                           Transaction(needed_amount, timeperiod, "withdrawal",
                                       agobj.agent_id))
                 else
@@ -144,7 +144,7 @@ function life_check!(arr_agents)
             agobj.location_x = -1
             agobj.location_y = -1
             agobj.alive = false
-            agobj.institution_id = -1
+            agobj.proto_id = -1
         end
     end
     # println("Number of agents: ", string(length(arr_agents)))
