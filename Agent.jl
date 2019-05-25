@@ -2,7 +2,6 @@ include("Institution.jl")
 include("max-num-generator.jl")
 
 using Random
-using RCall
 
 maxnumchannel = Channel(producer);
 
@@ -155,22 +154,6 @@ function life_check!(arr_agents)
     #     println("It appears that all agents have died!")
     # end
     return(arr_agents)
-end
-
-function compute_Gini(arr_agents)
-    arr_suglevels = [agobj.sugar_level for agobj in
-                     arr_agents]
-    R"library(ineq)"
-    gini = R"ineq($arr_suglevels, type='Gini')"[1]
-    try
-        @assert gini >= 0.0 && gini <= 1.0
-    catch
-        ## println("Came across a nonsensical Gini value: ", string(gini))
-        # readline()
-    end
-
-    # println(gini)
-    return(gini)    
 end
 
 function perform_birth_inbound_outbound!(arr_agents, sugscape_obj, birth_rate, 
