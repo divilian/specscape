@@ -12,7 +12,8 @@ using Serialization
 
 
 function set_up_environment(scape_side, scape_carry_cap, scape_growth_rate,
-                            pop_density, metab_range_tpl, vision_range_tpl, suglvl_range_tpl)
+                            pop_density, metab_range_tpl, vision_range_tpl, suglvl_range_tpl,
+                            rslnc_time_range_tpl)
     """
     Arguments:
     scape_side
@@ -22,6 +23,7 @@ function set_up_environment(scape_side, scape_carry_cap, scape_growth_rate,
     metab_range_tpl
     vision_range_tpl
     suglvl_range_tpl
+    rslnc_time_range_tpl
 
     Returns: dictionary {sugscape object =>, arr_agents => }
     """
@@ -35,16 +37,32 @@ function set_up_environment(scape_side, scape_carry_cap, scape_growth_rate,
     metabol_distrib =  DiscreteUniform(metab_range_tpl[1], metab_range_tpl[2]);
     vision_distrib = DiscreteUniform(vision_range_tpl[1], vision_range_tpl[2]);
     suglvl_distrib = DiscreteUniform(suglvl_range_tpl[1], suglvl_range_tpl[2]);
+    rslnc_distrib = DiscreteUniform(rslnc_time_range_tpl[1], rslnc_time_range_tpl[2]);
 
     arr_poss_locations = sample([(x,y) for x in 1:scape_side, y in 1:scape_side],
                                 no_agents, replace=false)    
+# agent_id::Int64
+#     location_x::Int64
+#     location_y::Int64
+#     vision::Int64
+#     metabolic_rate::Int64
+#     sugar_level::Float64
+#     alive::Bool
+#     proto_id::Int64
+#     starvation_duration::Int64 ## count of periods of starvation
+#     resilience_duration::Int64
 
-    arr_agents = [Agent(agg_id,
-                        arr_poss_locations[agg_id][1],
-                        arr_poss_locations[agg_id][2],
-                        rand(vision_distrib),
-                        rand(metabol_distrib),
-                        rand(suglvl_distrib), true, -1)
+    arr_agents = [Agent(agg_id, ## agent_id
+                        arr_poss_locations[agg_id][1], ## location_x
+                        arr_poss_locations[agg_id][2], ## location_y
+                        rand(vision_distrib), ## vision
+                        rand(metabol_distrib), ## metabolic_rate
+                        rand(suglvl_distrib),  ## sugar_level
+                        true, ## alive status
+                        -1, ## default proto_id
+                        0, ## starvation_duration
+                        rand(rslnc_distrib) ## resilience_duration
+                        )
                   for agg_id in 1:no_agents]
 
     ## mark as occupied the cells in sugarscape corresponding to the agents' locs
@@ -78,7 +96,7 @@ end
 function animate_sim(sugscape_obj, arr_agents, time_periods, 
                      birth_rate, inbound_rate, outbound_rate,
                      vision_range_tpl, metab_range_tpl, suglvl_range_tpl,
-                     threshold)
+                     threshold, rslnc_time_range_tpl)
     """
     Performs the various operations on the sugarscape and agent population
     to 'animate' them.
@@ -88,6 +106,7 @@ function animate_sim(sugscape_obj, arr_agents, time_periods,
     metabol_distrib =  DiscreteUniform(metab_range_tpl[1], metab_range_tpl[2]);
     vision_distrib = DiscreteUniform(vision_range_tpl[1], vision_range_tpl[2]);
     suglvl_distrib = DiscreteUniform(suglvl_range_tpl[1], suglvl_range_tpl[2]); 
+    rslnc_distrib = DiscreteUniform(rslnc_time_range_tpl[1], rslnc_time_range_tpl[2]); 
 
     arr_agent_ginis = zeros(time_periods)
     arr_scape_ginis = zeros(time_periods)
@@ -111,7 +130,7 @@ function animate_sim(sugscape_obj, arr_agents, time_periods,
         perform_birth_inbound_outbound!(arr_agents, sugscape_obj, birth_rate, 
                                         inbound_rate, outbound_rate, 
                                         vision_distrib, metabol_distrib,
-                                        suglvl_distrib) 
+                                        suglvl_distrib, rslnc_distrib) 
         form_possible_protos!(arr_agents, threshold, sugscape_obj, 
                                     arr_protos, period)
 
@@ -134,19 +153,16 @@ function animate_sim(sugscape_obj, arr_agents, time_periods,
         
     end## end of time_periods for loop
     delete!(d_combo_pop_suglevels, 0) ## delete the original dummy key-value pair
-    # println("d_combo_pop_suglevels has ", string(length(d_combo_pop_suglevels)), " number of keys!")
-    # readline()
+
     return((arr_agent_ginis, arr_scape_ginis, d_combo_pop_suglevels))
 end ## end animate_sim()
 
 function run_sim(givenseed)
     Random.seed!(givenseed)
-    params_df = CSV.read("parameter-ranges-testing.csv")
-    outfile_name = "outputs-new.csv"
-    time_periods = 100
+    # params_df = CSV.read("parameter-ranges-testing.csv")
+    params_df = CSV.read("parameter-ranges-testing-may25-2019.csv")
 
-    # temp_out = DataFrame(zeros(nrow(params_df), time_periods))
-    # names!(temp_out, Symbol.(["prd_"*string(i) for i in 1:time_periods]))
+    time_periods = 100
 
     temp_out_agents = DataFrame(zeros(nrow(params_df), time_periods))
     names!(temp_out_agents, Symbol.(["prd_"*string(i) for i in 1:time_periods]))
@@ -154,16 +170,8 @@ function run_sim(givenseed)
     temp_out_scape = DataFrame(zeros(nrow(params_df), time_periods))
     names!(temp_out_scape, Symbol.(["prd_"*string(i) for i in 1:time_periods]))
 
-    # out_df = DataFrame()
     out_df_agents = DataFrame()
     out_df_scape = DataFrame()
-    # for colname in names(params_df)
-    #     out_df[Symbol(colname)] = params_df[Symbol(colname)]
-    # end
-
-    # for colname in names(temp_out)
-    #     out_df[Symbol(colname)] = temp_out[Symbol(colname)]
-    # end
 
     for colname in names(params_df)
         out_df_agents[Symbol(colname)] = params_df[Symbol(colname)]
@@ -188,17 +196,18 @@ function run_sim(givenseed)
         metab_range_tpl = (1, params_df[rownum, :MtblRate])
         vision_range_tpl = (1, params_df[rownum, :VsnRng])
         suglvl_range_tpl = (1, params_df[rownum, :InitSgLvl])
+        rslnc_time_range_tpl = (1, params_df[rownum, :ResilienceTime])
+
         pop_density = params_df[rownum, :Adensity]
         birth_rate = params_df[rownum, :Birthrate]
         inbound_rate = params_df[rownum, :InbndRt]
         outbound_rate = params_df[rownum, :OtbndRt]
         threshold = params_df[rownum, :Threshold]
         
-            
         dict_objs = set_up_environment(scape_side, scape_carry_cap,
                                        scape_growth_rate, pop_density,
                                        metab_range_tpl, vision_range_tpl,
-                                       suglvl_range_tpl)
+                                       suglvl_range_tpl, rslnc_time_range_tpl)
         sugscape_obj = dict_objs["sugscape_obj"]
         arr_agents = dict_objs["arr_agents"]
         
@@ -215,7 +224,8 @@ function run_sim(givenseed)
                                                                               outbound_rate,
                                                                               vision_range_tpl, 
                                                                               metab_range_tpl, 
-                                                                              suglvl_range_tpl, threshold)
+                                                                              suglvl_range_tpl, threshold,
+                                                                              rslnc_time_range_tpl)
 
                                 
         # for colnum in ncol(params_df)+1 : ncol(out_df)
@@ -243,14 +253,16 @@ function run_sim(givenseed)
     return((out_df_agents, out_df_scape))
 end ## run_sim
 
-
-arr_seeds = [10, 80085, 4545, 4543543535, 87787765, 63542, 34983, 596895, 2152, 434];
-outdir = "outputs/"
-for seednum in arr_seeds 
-    outdf_agents, outdf_scape = run_sim(seednum)
-    fname = outdir * "outputfile-agents-" * string(seednum) * ".csv"
-    outdf_agents |> CSV.write(fname)
-    fname = outdir * "outputfile-scape-" * string(seednum) * ".csv"
-    outdf_scape |> CSV.write(fname)
-    println("Finished processing seed: ", string(seednum))
+function run()
+    arr_seeds = [10, 80085, 4545, 4543543535, 87787765, 63542, 34983, 596895, 2152, 434];
+    outdir = "outputs/"
+    for seednum in arr_seeds 
+        outdf_agents, outdf_scape = run_sim(seednum)
+        fname = outdir * "outputfile-agents-" * string(seednum) * ".csv"
+        outdf_agents |> CSV.write(fname)
+        fname = outdir * "outputfile-scape-" * string(seednum) * ".csv"
+        outdf_scape |> CSV.write(fname)
+        println("Finished processing seed: ", string(seednum))
+    end 
 end
+@time run()

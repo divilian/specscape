@@ -112,17 +112,17 @@ function form_possible_protos!(arr_agents, threshold, sugscape_obj,
                     ## println("No neighbor found with an existing membership, ",
                             # "so creating a new proto with agent: ", 
                             # string(partner_agent.agent_id))
-                    agobj.proto_id = start_proto_id
-                    agobj.sugar_level = agobj.sugar_level - threshold
+                    agobj.proto_id = start_proto_id                    
                     transaction1 = Transaction(agobj.sugar_level - threshold,
                                                timeperiod, "deposit", 
                                                agobj.agent_id)
+                    agobj.sugar_level = agobj.sugar_level - threshold
 
                     partner_agent.proto_id = start_proto_id
-                    partner_agent.sugar_level = partner_agent.sugar_level - threshold
                     transaction2 = Transaction(partner_agent.sugar_level - threshold,
                                                timeperiod, "deposit", 
                                                partner_agent.agent_id)
+                    partner_agent.sugar_level = partner_agent.sugar_level - threshold
 
                     prototn_obj = Proto(start_proto_id, 
                                        transaction1.transaction_amount +
@@ -134,7 +134,9 @@ function form_possible_protos!(arr_agents, threshold, sugscape_obj,
                     push!(arr_protos, prototn_obj)
                     ## println("Added ", string(agobj.agent_id), " to a new ",
                             # "proto with id:", start_proto_id)
-
+                    
+                    ## increment start_proto_id
+                    start_proto_id += 1
                 else ## (b) and (c)
                     ## println("Inside the (b) and (c) conditional branch")
                     protot_obj = fetch_specific_proto_obj(arr_protos, 

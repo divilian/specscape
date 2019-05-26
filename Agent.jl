@@ -2,8 +2,10 @@ include("Proto.jl")
 include("max-num-generator.jl")
 
 using Random
-
 maxnumchannel = Channel(producer);
+
+# Note: An agent has at most starvation_duration number of periods before it dies. If it is unable to find sugar during
+# a current time period, it migrates to a new cell which is farthest from its current cell, upto its vision. It does this by: (a) first, determining whether the farthest cell (distance == vision) in the N-E-S-W directions is reachable. if it is reachable, then it moves there. (b) If the farthest cell is unreachable, then it identifies the farthest cell to which it can move, and moves there. It performs these movements until either it finds sugar or migrates out of the sugarscape, or dies (if unable to find food before starvation_duration matches resilience_duration).
 
 mutable struct Agent
     agent_id::Int64
@@ -14,6 +16,8 @@ mutable struct Agent
     sugar_level::Float64
     alive::Bool
     proto_id::Int64
+    starvation_duration::Int64 ## count of periods of starvation
+    resilience_duration::Int64 ## max. time for migration or finding food, before dying.
 end
 
 function fetch_best_location(ag_obj, sugscape_obj)
@@ -159,7 +163,7 @@ end
 function perform_birth_inbound_outbound!(arr_agents, sugscape_obj, birth_rate, 
                                          inbound_rate, outbound_rate, 
                                          vision_distrib, metabol_distrib, 
-                                         suglvl_distrib)
+                                         suglvl_distrib, rslnc_distrib)
     """
     Implements the births, inbound migration, and outbound migration by adding new agents 
     (births and inbound) and removing agents (outbound).
@@ -228,7 +232,8 @@ function perform_birth_inbound_outbound!(arr_agents, sugscape_obj, birth_rate,
                             rand(vision_distrib),
                             rand(metabol_distrib),
                             rand(suglvl_distrib),
-                            true, -1)
+                            true, -1,
+                            0, rand(rslnc_distrib))
                       for index in 1:no_to_add]
 
     ## set the new cell locations' occupied status to true
